@@ -1,33 +1,48 @@
 <!DOCTYPE html>
 <html>
 <head>
-<title>Milkman Coloring</title>
-<style>
-body {
-    text-align:center;
-    font-family:Arial,sans-serif;
-}
+  <title>Milkman Coloring Page</title>
+  <style>
+    body {
+      text-align: center;
+      font-family: Arial, sans-serif;
+      background: #f7f7f7;
+      margin: 0;
+      padding: 20px;
+    }
 
-#container {
-    position:relative;
-    display:inline-block;
-}
+    .controls {
+      margin-bottom: 15px;
+    }
 
-#coloringPage {
-    display:block;
-    max-width:100%;
-}
+    button, input {
+      font-size: 18px;
+      margin: 5px;
+      padding: 8px;
+    }
 
-#drawCanvas {
-    position:absolute;
-    left:0;
-    top:0;
-}
+    #container {
+      position: relative;
+      display: inline-block;
+      max-width: 100%;
+      background: white;
+    }
 
-.controls {
-    margin:15px;
-}
-</style>
+    #coloringPage {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      pointer-events: none;
+    }
+
+    #drawCanvas {
+      position: absolute;
+      left: 0;
+      top: 0;
+      touch-action: none;
+      cursor: crosshair;
+    }
+  </style>
 </head>
 
 <body>
@@ -35,93 +50,124 @@ body {
 <h1>Milkman Coloring Page</h1>
 
 <div class="controls">
-    <input type="color" id="colorPicker" value="#ff0000">
-    <button onclick="undoLast()">Undo</button>
-    <button onclick="clearCanvas()">Clear</button>
+  <label>Color:</label>
+  <input type="color" id="colorPicker" value="#ff0000">
+
+  <label>Brush:</label>
+  <input type="range" id="brushSize" min="5" max="60" value="25">
+
+  <button id="undoBtn">Undo</button>
+  <button id="clearBtn">Clear</button>
 </div>
 
 <div id="container">
-    <img id="coloringPage" src="milkman.png">
-    <canvas id="drawCanvas"></canvas>
+  <img id="coloringPage" src="milkman.png">
+  <canvas id="drawCanvas"></canvas>
 </div>
 
 <script>
-const img = document.getElementById('coloringPage');
-const canvas = document.getElementById('drawCanvas');
-const ctx = canvas.getContext('2d');
-const colorPicker = document.getElementById('colorPicker');
+const img = document.getElementById("coloringPage");
+const canvas = document.getElementById("drawCanvas");
+const ctx = canvas.getContext("2d");
+const colorPicker = document.getElementById("colorPicker");
+const brushSize = document.getElementById("brushSize");
+const undoBtn = document.getElementById("undoBtn");
+const clearBtn = document.getElementById("clearBtn");
 
 let drawing = false;
 let history = [];
 
-img.onload = function() {
-    canvas.width = img.width;
-    canvas.height = img.height;
-};
+function setupCanvas() {
+  canvas.width = img.clientWidth;
+  canvas.height = img.clientHeight;
+}
+
+img.onload = setupCanvas;
+window.addEventListener("resize", setupCanvas);
 
 function saveState() {
-    history.push(canvas.toDataURL());
+  history.push(canvas.toDataURL());
+  if (history.length > 25) {
+    history.shift();
+  }
+}
+
+function getPosition(e) {
+  const rect = canvas.getBoundingClientRect();
+  const touch = e.touches ? e.touches[0] : e;
+
+  return {
+    x: touch.clientX - rect.left,
+    y: touch.clientY - rect.top
+  };
+}
+
+function startDrawing(e) {
+  saveState();
+  drawing = true;
+
+  const pos = getPosition(e);
+  ctx.beginPath();
+  ctx.moveTo(pos.x, pos.y);
+
+  e.preventDefault();
+}
+
+function draw(e) {
+  if (!drawing) return;
+
+  const pos = getPosition(e);
+
+  ctx.globalAlpha = 0.5;
+  ctx.globalCompositeOperation = "multiply";
+  ctx.strokeStyle = colorPicker.value;
+  ctx.lineWidth = brushSize.value;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  ctx.lineTo(pos.x, pos.y);
+  ctx.stroke();
+
+  ctx.globalAlpha = 1.0;
+  ctx.globalCompositeOperation = "source-over";
+
+  e.preventDefault();
+}
+
+function stopDrawing() {
+  drawing = false;
 }
 
 function undoLast() {
-    if(history.length === 0) return;
+  if (history.length === 0) return;
 
-    const previous = history.pop();
-    const image = new Image();
+  const previous = history.pop();
+  const image = new Image();
 
-    image.onload = function() {
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-        ctx.drawImage(image,0,0);
-    };
+  image.onload = function() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+  };
 
-    image.src = previous;
+  image.src = previous;
 }
 
-function getPos(e){
-    const rect = canvas.getBoundingClientRect();
-
-    return {
-        x:e.clientX - rect.left,
-        y:e.clientY - rect.top
-    };
+function clearCanvas() {
+  saveState();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
 
-canvas.addEventListener('mousedown',function(e){
-    saveState();
-    drawing = true;
+canvas.addEventListener("mousedown", startDrawing);
+canvas.addEventListener("mousemove", draw);
+canvas.addEventListener("mouseup", stopDrawing);
+canvas.addEventListener("mouseleave", stopDrawing);
 
-    const pos = getPos(e);
+canvas.addEventListener("touchstart", startDrawing);
+canvas.addEventListener("touchmove", draw);
+canvas.addEventListener("touchend", stopDrawing);
 
-    ctx.beginPath();
-    ctx.moveTo(pos.x,pos.y);
-});
-
-canvas.addEventListener('mousemove',function(e){
-    if(!drawing) return;
-
-    const pos = getPos(e);
-
-    ctx.strokeStyle = colorPicker.value;
-    ctx.lineWidth = 15;
-    ctx.lineCap = 'round';
-
-    ctx.globalAlpha = 0.5;
-
-    ctx.lineTo(pos.x,pos.y);
-    ctx.stroke();
-});
-
-canvas.addEventListener('mouseup',function(){
-    drawing = false;
-});
-
-canvas.addEventListener('mouseleave',function(){
-    drawing = false;
-});
-
-function clearCanvas(){
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-}
+undoBtn.addEventListener("click", undoLast);
+clearBtn.addEventListener("click", clearCanvas);
 </script>
 
 </body>
