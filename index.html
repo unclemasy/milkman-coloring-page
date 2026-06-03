@@ -3,40 +3,12 @@
 <head>
 <title>Milkman Coloring Page</title>
 <style>
-body {
-  text-align:center;
-  font-family:Arial, sans-serif;
-  background:#f5f5f5;
-}
-
-button, input {
-  font-size:18px;
-  margin:5px;
-  padding:8px;
-}
-
-#box {
-  position:relative;
-  display:inline-block;
-  max-width:100%;
-  background:white;
-}
-
-#paintCanvas {
-  position:absolute;
-  left:0;
-  top:0;
-  z-index:1;
-}
-
-#lineArt {
-  position:absolute;
-  left:0;
-  top:0;
-  z-index:2;
-  pointer-events:none;
-  mix-blend-mode:multiply;
-}
+body{font-family:Arial;text-align:center;background:#f5f5f5}
+button,input{font-size:18px;margin:5px;padding:8px}
+#box{position:relative;display:inline-block;background:white}
+canvas{position:absolute;left:0;top:0}
+#lineCanvas{pointer-events:none}
+#sourceImg{display:none}
 </style>
 </head>
 
@@ -51,105 +23,122 @@ button, input {
 
 <div id="box">
   <canvas id="paintCanvas"></canvas>
-  <img id="lineArt" src="milkman.png">
+  <canvas id="lineCanvas"></canvas>
 </div>
 
+<img id="sourceImg" src="milkman.png">
+
 <script>
-const img = document.getElementById("lineArt");
-const canvas = document.getElementById("paintCanvas");
-const ctx = canvas.getContext("2d");
-const color = document.getElementById("color");
-const size = document.getElementById("size");
-const box = document.getElementById("box");
+const img=document.getElementById("sourceImg");
+const box=document.getElementById("box");
+const paint=document.getElementById("paintCanvas");
+const line=document.getElementById("lineCanvas");
+const pctx=paint.getContext("2d");
+const lctx=line.getContext("2d");
+const color=document.getElementById("color");
+const size=document.getElementById("size");
 
-let drawing = false;
-let history = [];
+let drawing=false;
+let history=[];
 
-img.onload = function() {
-  canvas.width = img.naturalWidth;
-  canvas.height = img.naturalHeight;
+img.onload=function(){
+  const w=img.naturalWidth;
+  const h=img.naturalHeight;
 
-  canvas.style.width = "100%";
-  canvas.style.height = "auto";
+  box.style.width=w+"px";
+  box.style.height=h+"px";
 
-  img.style.width = "100%";
-  img.style.height = "auto";
+  paint.width=line.width=w;
+  paint.height=line.height=h;
 
-  box.style.width = img.naturalWidth + "px";
-  box.style.height = img.naturalHeight + "px";
+  lctx.drawImage(img,0,0,w,h);
+
+  const imageData=lctx.getImageData(0,0,w,h);
+  const data=imageData.data;
+
+  for(let i=0;i<data.length;i+=4){
+    const r=data[i], g=data[i+1], b=data[i+2];
+    const brightness=(r+g+b)/3;
+
+    if(brightness>220){
+      data[i+3]=0;
+    } else {
+      data[i]=0;
+      data[i+1]=0;
+      data[i+2]=0;
+      data[i+3]=255;
+    }
+  }
+
+  lctx.putImageData(imageData,0,0);
 };
 
-function save() {
-  history.push(canvas.toDataURL());
+function save(){
+  history.push(paint.toDataURL());
 }
 
-function pos(e) {
-  const r = canvas.getBoundingClientRect();
-  const t = e.touches ? e.touches[0] : e;
-
-  return {
-    x: (t.clientX - r.left) * (canvas.width / r.width),
-    y: (t.clientY - r.top) * (canvas.height / r.height)
+function getPos(e){
+  const rect=paint.getBoundingClientRect();
+  const t=e.touches?e.touches[0]:e;
+  return{
+    x:(t.clientX-rect.left)*(paint.width/rect.width),
+    y:(t.clientY-rect.top)*(paint.height/rect.height)
   };
 }
 
-function start(e) {
+function start(e){
   save();
-  drawing = true;
-  const p = pos(e);
-  ctx.beginPath();
-  ctx.moveTo(p.x, p.y);
+  drawing=true;
+  const p=getPos(e);
+  pctx.beginPath();
+  pctx.moveTo(p.x,p.y);
   e.preventDefault();
 }
 
-function draw(e) {
-  if (!drawing) return;
+function draw(e){
+  if(!drawing)return;
+  const p=getPos(e);
 
-  const p = pos(e);
+  pctx.globalAlpha=0.5;
+  pctx.strokeStyle=color.value;
+  pctx.lineWidth=size.value;
+  pctx.lineCap="round";
+  pctx.lineJoin="round";
 
-  ctx.globalAlpha = 0.5;
-  ctx.strokeStyle = color.value;
-  ctx.lineWidth = size.value;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-
-  ctx.lineTo(p.x, p.y);
-  ctx.stroke();
+  pctx.lineTo(p.x,p.y);
+  pctx.stroke();
 
   e.preventDefault();
 }
 
-function stop() {
-  drawing = false;
+function stop(){
+  drawing=false;
 }
 
-document.getElementById("undo").onclick = function() {
-  if (history.length === 0) return;
-
-  const old = history.pop();
-  const im = new Image();
-
-  im.onload = function() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(im, 0, 0);
+document.getElementById("undo").onclick=function(){
+  if(history.length===0)return;
+  const old=history.pop();
+  const im=new Image();
+  im.onload=function(){
+    pctx.clearRect(0,0,paint.width,paint.height);
+    pctx.drawImage(im,0,0);
   };
-
-  im.src = old;
+  im.src=old;
 };
 
-document.getElementById("clear").onclick = function() {
+document.getElementById("clear").onclick=function(){
   save();
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  pctx.clearRect(0,0,paint.width,paint.height);
 };
 
-canvas.addEventListener("mousedown", start);
-canvas.addEventListener("mousemove", draw);
-canvas.addEventListener("mouseup", stop);
-canvas.addEventListener("mouseleave", stop);
+paint.addEventListener("mousedown",start);
+paint.addEventListener("mousemove",draw);
+paint.addEventListener("mouseup",stop);
+paint.addEventListener("mouseleave",stop);
 
-canvas.addEventListener("touchstart", start);
-canvas.addEventListener("touchmove", draw);
-canvas.addEventListener("touchend", stop);
+paint.addEventListener("touchstart",start);
+paint.addEventListener("touchmove",draw);
+paint.addEventListener("touchend",stop);
 </script>
 
 </body>
